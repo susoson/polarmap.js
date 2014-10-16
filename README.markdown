@@ -55,6 +55,10 @@ See examples/marker-cluster for an integration with the popular [Leaflet MarkerC
 
 Note that the `removeOutsideVisibleBounds` function is disabled for MarkerCluster. By default, it works fine with the EPSG:3857 (web mercator) projection but has issues with the LAEA projections at low zoom levels.
 
+# heatmap.js
+
+See examples/heatmap for an integration with [heatmap.js](https://github.com/pa7/heatmap.js). Note that occlusion of heatmap data is dependent on the map viewport.
+
 ## Development
 
 To run a local webserver for testing the app, use the packaged Node http-server:
