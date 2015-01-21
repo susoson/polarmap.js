@@ -1,5 +1,5 @@
 /*
- PolarMap.js 0.6.2 (f2d15f2)
+ PolarMap.js 0.6.2 (de4a964)
  (c) 2014-2015 Arctic Connect, Geo Sensor Web Lab
 */
 (function (window, document, L, undefined) {
@@ -87,6 +87,68 @@ L.PolarMap.TileLayer = L.TileLayer.extend({});
 
 L.PolarMap.tileLayer = function (url, options) {
   return new L.PolarMap.TileLayer(url, options);
+};
+
+
+// Store the base layer, zoom level, and location in URL hash
+// Based on code from [underscore.js](https://github.com/jashkenas/underscore).
+// Underscore is MIT licensed:
+/*
+ *  Copyright (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative
+ *  Reporters & Editors
+ *
+ *  Permission is hereby granted, free of charge, to any person
+ *  obtaining a copy of this software and associated documentation
+ *  files (the "Software"), to deal in the Software without
+ *  restriction, including without limitation the rights to use,
+ *  copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the
+ *  Software is furnished to do so, subject to the following
+ *  conditions:
+ *
+ *  The above copyright notice and this permission notice shall be
+ *  included in all copies or substantial portions of the Software.
+ *
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *  OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *  WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *  OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+L.PolarMap.Util.debounce = function(func, wait, immediate) {
+  var timeout, args, context, timestamp, result;
+
+  var later = function() {
+    var last = Date.now() - timestamp;
+
+    if (last < wait && last >= 0) {
+      timeout = setTimeout(later, wait - last);
+    } else {
+      timeout = null;
+      if (!immediate) {
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      }
+    }
+  };
+
+  return function() {
+    context = this;
+    args = arguments;
+    timestamp = Date.now();
+    var callNow = immediate && !timeout;
+    if (!timeout) timeout = setTimeout(later, wait);
+    if (callNow) {
+      result = func.apply(context, args);
+      context = args = null;
+    }
+
+    return result;
+  };
 };
 
 
@@ -533,7 +595,9 @@ window.PolarMap = L.Class.extend({
   },
 
   initialize: function (id, options) {
-    var _this = this;
+    var _this = this,
+        container,
+        touches;
     L.Util.setOptions(this, options);
     this.tiles = tiles;
 
@@ -573,6 +637,46 @@ window.PolarMap = L.Class.extend({
     if (this.options.permalink) {
       this._initPermalink();
     }
+
+    /* Custom Map Gestures */
+    // We retain the last set of touches to determine rotation direction;
+    // the sign of event.rotation cannot be trusted.
+    container = this.map.getContainer();
+
+    container.addEventListener("touchstart",
+      L.PolarMap.Util.debounce(function(e) {
+        touches = [];
+      })
+    );
+
+    container.addEventListener("touchmove",
+      L.PolarMap.Util.debounce(function(e) {
+        touches.push(e);
+        if (touches.length > 10) {
+          touches.shift();
+        }
+      })
+    );
+
+    container.addEventListener("touchend",
+      L.PolarMap.Util.debounce(function(e) {
+        if (touches.length > 0) {
+          e.preventDefault();
+          var s1 = touches[0].rotation,
+              s2 = touches[touches.length - 1].rotation,
+              direction = s1 - s2,
+              delta = Math.abs(e.rotation);
+
+          if (delta > 45) {
+            if (direction > 0) {
+              _this.rotateCCW();
+            } else {
+              _this.rotateCW();
+            }
+          }
+        }
+      })
+    );
   },
 
   addLayer: function (layer, options) {
@@ -594,6 +698,14 @@ window.PolarMap = L.Class.extend({
       }
     }
     return foundLayer;
+  },
+
+  rotateCW: function () {
+    this.map.loadTileProjection(this.getBaseLayer().next);
+  },
+
+  rotateCCW: function () {
+    this.map.loadTileProjection(this.getBaseLayer().prev);
   },
 
   _initGeosearch: function () {

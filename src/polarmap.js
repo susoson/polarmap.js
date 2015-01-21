@@ -79,7 +79,9 @@ window.PolarMap = L.Class.extend({
   },
 
   initialize: function (id, options) {
-    var _this = this;
+    var _this = this,
+        container,
+        touches;
     L.Util.setOptions(this, options);
     this.tiles = tiles;
 
@@ -119,6 +121,46 @@ window.PolarMap = L.Class.extend({
     if (this.options.permalink) {
       this._initPermalink();
     }
+
+    /* Custom Map Gestures */
+    // We retain the last set of touches to determine rotation direction;
+    // the sign of event.rotation cannot be trusted.
+    container = this.map.getContainer();
+
+    container.addEventListener("touchstart",
+      L.PolarMap.Util.debounce(function(e) {
+        touches = [];
+      })
+    );
+
+    container.addEventListener("touchmove",
+      L.PolarMap.Util.debounce(function(e) {
+        touches.push(e);
+        if (touches.length > 10) {
+          touches.shift();
+        }
+      })
+    );
+
+    container.addEventListener("touchend",
+      L.PolarMap.Util.debounce(function(e) {
+        if (touches.length > 0) {
+          e.preventDefault();
+          var s1 = touches[0].rotation,
+              s2 = touches[touches.length - 1].rotation,
+              direction = s1 - s2,
+              delta = Math.abs(e.rotation);
+
+          if (delta > 45) {
+            if (direction > 0) {
+              _this.rotateCCW();
+            } else {
+              _this.rotateCW();
+            }
+          }
+        }
+      })
+    );
   },
 
   addLayer: function (layer, options) {
@@ -140,6 +182,14 @@ window.PolarMap = L.Class.extend({
       }
     }
     return foundLayer;
+  },
+
+  rotateCW: function () {
+    this.map.loadTileProjection(this.getBaseLayer().next);
+  },
+
+  rotateCCW: function () {
+    this.map.loadTileProjection(this.getBaseLayer().prev);
   },
 
   _initGeosearch: function () {

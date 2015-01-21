@@ -3,6 +3,7 @@ var deps = {
     src: ['leaflet.polarmap.js',
           'control/Control.Rotation.js',
           'layer/tile/TileLayer.js',
+          'util/Debounce.js',
           'util/Hash.js',
           'map/Map.js',
           'polarmap.js'
